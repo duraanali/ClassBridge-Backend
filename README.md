@@ -4,7 +4,7 @@ This is the documentation for the API endpoints provided by the server.
 
 ## Base URL
 
-The base URL for all API endpoints is: `http://localhost:9002/api`
+The base URL for all API endpoints is: `https://class-bridge-d6e46fc0250b.herokuapp.com/api`
 
 ## Authentication
 
