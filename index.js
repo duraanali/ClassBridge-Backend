@@ -359,6 +359,41 @@ app.post('/api/student/login', (req, res) => {
   });
 });
 
+// Student profile
+app.get('/api/student/profile', verifyToken, async (req, res) => {
+  if (!req.student) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const student_id = req.student.id;
+
+  try {
+    const studentProfile = await runQuery('SELECT id, first_name, last_name, email FROM students WHERE id = ?', [student_id]);
+    res.json(studentProfile[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'An error occurred' });
+  }
+});
+
+// Teacher profile
+app.get('/api/teacher/profile', verifyToken, async (req, res) => {
+  if (!req.teacher) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const teacher_id = req.teacher.id;
+
+  try {
+    const teacherProfile = await runQuery('SELECT id, first_name, last_name, email FROM teachers WHERE id = ?', [teacher_id]);
+    res.json(teacherProfile[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'An error occurred' });
+  }
+});
+
+
 // Student request to join a class
 app.post('/api/classes/:class_id/request', verifyToken, async (req, res) => {
   console.log(req.student)
