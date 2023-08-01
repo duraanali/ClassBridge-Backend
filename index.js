@@ -43,6 +43,7 @@ db.serialize(() => {
     teacher_id INTEGER,
     title TEXT,
     description TEXT,
+    image TEXT,
     FOREIGN KEY(teacher_id) REFERENCES teachers(id)
   )`);
 
@@ -181,13 +182,13 @@ app.post('/api/classes', verifyToken, async (req, res) => {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  const { title, description } = req.body;
+  const { title, description, image } = req.body;
   const teacher_id = req.teacher.id;
 
   try {
     const result = await runQuery(
-      'INSERT INTO classes (teacher_id, title, description) VALUES (?, ?, ?)',
-      [teacher_id, title, description]
+      'INSERT INTO classes (teacher_id, title, description, image) VALUES (?, ?, ?, ?)',
+      [teacher_id, title, description, image]
     );
 
     res.json({ message: 'Class created successfully', class_id: result.lastID });
@@ -204,7 +205,7 @@ app.put('/api/classes/:class_id', verifyToken, async (req, res) => {
   }
 
   const { class_id } = req.params;
-  const { title, description } = req.body;
+  const { title, description, image } = req.body;
   const teacher_id = req.teacher.id;
 
   try {
@@ -219,8 +220,8 @@ app.put('/api/classes/:class_id', verifyToken, async (req, res) => {
     }
 
     await runQuery(
-      'UPDATE classes SET title = ?, description = ? WHERE id = ?',
-      [title, description, class_id]
+      'UPDATE classes SET title = ?, description = ?, image = ? WHERE id = ?',
+      [title, description, class_id, image]
     );
 
     res.json({ message: 'Class updated successfully', class_id: classResult[0].id });
@@ -359,6 +360,43 @@ app.post('/api/student/login', (req, res) => {
   });
 });
 
+// Teacher view all class requests and student information
+app.get('/api/teacher/class-requests', verifyToken, async (req, res) => {
+  if (!req.teacher) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const teacher_id = req.teacher.id;
+
+  try {
+    // Check if the teacher has permission to view the class requests
+    const teacherClasses = await runQuery(
+      'SELECT id FROM classes WHERE teacher_id = ?',
+      [teacher_id]
+    );
+
+    if (teacherClasses.length === 0) {
+      return res.status(403).json({ error: 'Not authorized to view class requests' });
+    }
+
+    const classRequests = await runQuery(`
+      SELECT cr.id AS request_id, s.id AS student_id, s.first_name, s.last_name, s.email,
+             c.id AS class_id, c.title AS class_title, c.description AS class_description, c.image AS class_image
+      FROM class_requests cr
+      INNER JOIN students s ON cr.student_id = s.id
+      INNER JOIN classes c ON cr.class_id = c.id
+      WHERE cr.class_id IN (${teacherClasses.map(_ => '?').join(', ')})
+    `, teacherClasses.map(row => row.id));
+
+    res.json(classRequests);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'An error occurred' });
+  }
+});
+
+
+
 // Student profile
 app.get('/api/student/profile', verifyToken, async (req, res) => {
   if (!req.student) {
@@ -432,6 +470,42 @@ app.post('/api/classes/:class_id/request', verifyToken, async (req, res) => {
   }
 });
 
+// Teacher view all approved students and the classes they're attending
+app.get('/api/teacher/approved-students', verifyToken, async (req, res) => {
+  if (!req.teacher) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const teacher_id = req.teacher.id;
+
+  try {
+    // Check if the teacher has permission to view approved students
+    const teacherClasses = await runQuery(
+      'SELECT id FROM classes WHERE teacher_id = ?',
+      [teacher_id]
+    );
+
+    if (teacherClasses.length === 0) {
+      return res.status(403).json({ error: 'Not authorized to view approved students' });
+    }
+
+    const approvedStudents = await runQuery(`
+      SELECT s.id AS student_id, s.first_name, s.last_name, s.email,
+             c.id AS class_id, c.title AS class_title, c.description AS class_description, c.image AS class_image
+      FROM students s
+      INNER JOIN student_classes sc ON s.id = sc.student_id
+      INNER JOIN classes c ON sc.class_id = c.id
+      WHERE c.id IN (${teacherClasses.map(_ => '?').join(', ')})
+    `, teacherClasses.map(row => row.id));
+
+    res.json(approvedStudents);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'An error occurred' });
+  }
+});
+
+
 // Student view all classes they're attending
 app.get('/api/student/classes', verifyToken, async (req, res) => {
   if (!req.student) {
@@ -442,7 +516,7 @@ app.get('/api/student/classes', verifyToken, async (req, res) => {
 
   try {
     const classes = await runQuery(`
-      SELECT c.id, c.title, c.description, t.first_name || ' ' || t.last_name AS teacher
+      SELECT c.id, c.title, c.description, c.image, t.first_name, t.last_name
       FROM classes c
       INNER JOIN student_classes sc ON c.id = sc.class_id
       INNER JOIN teachers t ON c.teacher_id = t.id
