@@ -87,7 +87,6 @@ function generateToken(payload) {
 function verifyToken(req, res, next) {
     // Get auth header value, should be in the format 'Bearer <token>'
   const token = req.headers.authorization.split(' ')[1];
-  console.log(token);
   if (!token) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -207,10 +206,8 @@ app.put('/api/classes/:class_id', verifyToken, async (req, res) => {
   const { class_id } = req.params;
   const { title, description, image } = req.body;
   const teacher_id = req.teacher.id;
-
   try {
     const classResult = await runQuery('SELECT * FROM classes WHERE id = ?', [class_id]);
-
     if (classResult.length === 0) {
       return res.status(404).json({ error: 'Class not found' });
     }
@@ -221,9 +218,8 @@ app.put('/api/classes/:class_id', verifyToken, async (req, res) => {
 
     await runQuery(
       'UPDATE classes SET title = ?, description = ?, image = ? WHERE id = ?',
-      [title, description, class_id, image]
+      [title, description, image, class_id]
     );
-
     res.json({ message: 'Class updated successfully', class_id: classResult[0].id });
   } catch (error) {
     console.error(error);
